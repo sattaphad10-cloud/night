@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดเวรดึกอัจฉริยะ Pro (บันทึกข้อมูล & แจ้งเตือนความผิดพลาด)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
+        body { background-color: #f1f5f9; margin: 0; padding: 15px; color: #1e293b; }
+        .wrapper { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .wrapper { grid-template-columns: 1.2fr 0.8fr; } }
+        
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        h2 { margin-top: 0; color: #0f172a; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        
+        textarea { width: 100%; height: 120px; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 13px; resize: vertical; }
+        button { background-color: #059669; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #047857; }
+        .btn-blue { background-color: #2563eb; }
+        .btn-blue:hover { background-color: #1d4ed8; }
+        .btn-line { background-color: #06c755; }
+        .btn-line:hover { background-color: #05b04b; }
+        .btn-red { background-color: #ef4444; }
+        .btn-red:hover { background-color: #dc2626; }
+        .btn-orange { background-color: #f97316; }
+        .btn-orange:hover { background-color: #ea580c; }
+
+        .month-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            background: #eff6ff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #bfdbfe;
+            margin-bottom: 20px;
+        }
+
+        /* ฟอร์มจัดเวร */
+        .form-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #f1f5f9; }
+        @media (min-width: 480px) { .form-row { grid-template-columns: 1.2fr 2fr 2fr; } }
+        label { font-size: 12px; font-weight: 600; color: #475569; display: block; margin-bottom: 4px; }
+        select, input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: white; }
+        
+        /* สไตล์ตารางพรีวิว */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background: #1e293b; color: white; }
+        .day-tag { font-weight: bold; }
+        .badge { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 4px; display: inline-block; }
+
+        .output-box { background: #f8fafc; border: 1px dashed #cbd5e1; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-size: 14px; font-family: monospace; max-height: 400px; overflow-y: auto; }
+
+        /* ส่วนจัดการรายชื่อพนักงาน */
+        .staff-manager { display: none; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .staff-chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .staff-chip { background: #e2e8f0; padding: 5px 10px; border-radius: 20px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .staff-chip span { cursor: pointer; color: #ef4444; font-weight: bold; }
+
+        .system-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div style="text-align: center; margin-bottom: 20px;">
+    <h1 style="margin: 0; color: #0f172a; font-size: 24px;">📝 เครื่องมือจัดเวรดึก & ส่งไลน์อัจฉริยะ (V2.0)</h1>
+    <p style="margin: 5px 0 0; color: #64748b; font-size: 14px;">ระบบแจ้งเตือนกรณีเดือนไม่ตรง | มีระบบบันทึกข้อมูลในเครื่อง | ปรับแต่งและส่งต่อข้อมูลให้ผู้อื่นได้</p>
+</div>
+
+<div class="system-actions" style="max-width: 1100px; margin: 0 auto 15px auto; display: flex; justify-content: flex-end;">
+    <button class="btn-orange" onclick="exportData()">📤 ส่งออกไฟล์ข้อมูล (Export)</button>
+    <button class="btn-blue" onclick="triggerImport()">📥 นำเข้าไฟล์ข้อมูล (Import)</button>
+    <input type="file" id="importFile" style="display: none;" onchange="importData(event)">
+</div>
+
+<div class="wrapper">
+    <div class="card">
+        <h2>
+            <span>⚙️ จัดการรายชื่อเจ้าหน้าที่</span>
+            <button onclick="toggleStaffManager()" style="font-size: 12px; padding: 4px 10px;">เปิด/ปิด เมนูจัดการรายชื่อ</button>
+        </h2>
+        
+        <div id="staffManagerBox" class="staff-manager">
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="newStaffName" placeholder="ระบุชื่อจริงหรือชื่อเล่นพนักงานใหม่..." style="flex: 1;">
+                <button onclick="addNewStaff()">➕ เพิ่มพนักงาน</button>
+            </div>
+            <div class="staff-chip-container" id="staffContainer">
+                </div>
+        </div>
+
+        <h2 style="margin-top: 25px;">📅 เลือกเดือนและปีที่ต้องการจัดเวร</h2>
+        <div class="month-selector">
+            <div>
+                <label style="font-size: 14px;">ประจำเดือน:</label>
+                <select id="selectMonth" onchange="onMonthYearChange()">
+                    <option value="0">มกราคม</option>
+                    <option value="1">กุมภาพันธ์</option>
+                    <option value="2">มีนาคม</option>
+                    <option value="3">เมษายน</option>
+                    <option value="4">พฤษภาคม</option>
+                    <option value="5">มิถุนายน</option>
+                    <option value="6">กรกฎาคม</option>
+                    <option value="7" selected>สิงหาคม</option>
+                    <option value="8">กันยายน</option>
+                    <option value="9">ตุลาคม</option>
+                    <option value="10">พฤศจิกายน</option>
+                    <option value="11">ธันวาคม</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 14px;">ปี พ.ศ. :</label>
+                <select id="selectYear" onchange="onMonthYearChange()">
+                    <option value="2568">2568</option>
+                    <option value="2569" selected>2569</option>
+                    <option value="2570">2570</option>
+                    <option value="2571">2571</option>
+                    <option value="2572">2572</option>
+                </select>
+            </div>
+        </div>
+
+        <h2>🔄 นำเข้าข้อความจาก LINE เพื่อจัดเวรต่อ</h2>
+        <textarea id="importText" placeholder="วางข้อความจาก LINE เพื่ออัปเดตข้อมูลต่อได้ทันที"></textarea>
+        <div style="margin-top: 10px; display: flex; gap: 10px;">
+            <button class="btn-blue" onclick="importFromLine()">📥 ดึงข้อมูลมาแก้ไข</button>
+            <button onclick="clearAll()" class="btn-red">🧹 ล้างตารางเวรเดือนนี้</button>
+        </div>
+
+        <h2 style="margin-top: 25px;">✏️ ปรับปรุงรายชื่อคู่เวรของแต่ละวัน</h2>
+        <div id="scheduleForm"></div>
+    </div>
+
+    <div>
+        <div class="card" style="position: sticky; top: 15px;">
+            <h2>📱 ข้อความสำหรับก๊อปปี้ส่ง LINE</h2>
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <button class="btn-line" style="width: 100%; font-size: 16px;" onclick="copyToLine()">📋 คัดลอกข้อความทั้งหมด</button>
+            </div>
+            <div class="output-box" id="lineOutput"></div>
+            
+            <h2 style="margin-top: 25px;">👁️ ตารางพรีวิวตรวจสอบความถูกต้อง</h2>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>วัน / วันที่</th>
+                            <th>คู่เวรดึก</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// รายชื่อเริ่มต้น กรณีไม่มีข้อมูลเซฟอยู่ในเครื่องเลย
+const defaultStaffList = [
+    "ศรทอง", "เสาวณีย์", "เบญญาภา", "กัญณฐา", "รุ่งทิวา", "กานจ์พิชชา", "ธนัญญา", 
+    "ณัฐชนน", "กิตติพร", "วิทวัส", "แพรวมณี", "สุรจิต", "นูรูลฮีดายะห์", "ปิติ", 
+    "ธนบดี", "ขวัญเรือน", "กัญสินีภัค", "วันวิสาข์", "ปภาดา", "ทิพวัลย์", "ภนิตา", 
+    "รัตตา", "กานต์ชนิต", "กานต์นิต", "สุปราณี", "วันเฉลิม", "อาทิตยา", "ศโรธร"
+];
+
+let staffList = [];
+let scheduleData = [];
+
+const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const thaiDays = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+
+// โหลดข้อมูลเริ่มต้นเมื่อเปิดหน้าเว็บ
+function initApp() {
+    // 1. ดึงรายชื่อพนักงานที่เซฟไว้ หรือใช้ค่าเริ่มต้น
+    const storedStaff = localStorage.getItem('hospital_staff_list');
+    if (storedStaff) {
+        staffList = JSON.parse(storedStaff);
+    } else {
+        staffList = [...defaultStaffList];
+        saveStaffToStorage();
+    }
+    
+    // 2. ดึงสถานะเดือน/ปี ที่เคยเลือกล่าสุด
+    const storedMonth = localStorage.getItem('current_month');
+    const storedYear = localStorage.getItem('current_year');
+    if (storedMonth !== null) document.getElementById('selectMonth').value = storedMonth;
+    if (storedYear !== null) document.getElementById('selectYear').value = storedYear;
+
+    renderStaffManager();
+    onMonthYearChange(true); // true = โหลดตารางเวรเก่ามาแสดงถ้ามีเซฟไว้
+}
+
+// อัปเดตตารางเวลาในกรณีมีการเปลี่ยนเดือน/ปี
+function onMonthYearChange(loadFromStorage = false) {
+    const month = parseInt(document.getElementById('selectMonth').value);
+    const yearBE = parseInt(document.getElementById('selectYear').value);
+    const yearCE = yearBE - 543;
+
+    localStorage.setItem('current_month', month);
+    localStorage.setItem('current_year', yearBE);
+
+    const daysInMonth = new Date(yearCE, month + 1, 0).getDate();
+    
+    // ตรวจสอบว่ามีข้อมูลตารางเวรเดือนนี้เซฟไว้อยู่แล้วในเครื่องหรือไม่
+    const storageKey = `duty_schedule_${yearBE}_${month}`;
+    const storedSchedule = localStorage.getItem(storageKey);
+
+    if (loadFromStorage && storedSchedule) {
+        scheduleData = JSON.parse(storedSchedule);
+    } else {
+        scheduleData = [];
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateObj = new Date(yearCE, month, i);
+            const dayOfWeekName = thaiDays[dateObj.getDay()];
+
+            scheduleData.push({
+                dayNum: i,
+                dayName: `วัน${dayOfWeekName} ที่ ${i}`,
+                staff1: "",
+                sub1: "",
+                staff2: "",
+                sub2: ""
+            });
+        }
+    }
+
+    generateForm();
+    updatePreviewAndOutput();
+}
+
+// เรนเดอร์การแสดงรายชื่อในกล่องจัดการพนักงาน
+function renderStaffManager() {
+    const container = document.getElementById('staffContainer');
+    container.innerHTML = '';
+    
+    // เรียงลำดับชื่อพนักงานตาม ก-ฮ
+    staffList.sort((a, b) => a.localeCompare(b, 'th'));
+
+    staffList.forEach(name => {
+        const chip = document.createElement('div');
+        chip.className = 'staff-chip';
+        chip.innerHTML = `${name} <span onclick="removeStaff('${name}')">×</span>`;
+        container.appendChild(chip);
+    });
+}
+
+function toggleStaffManager() {
+    const box = document.getElementById('staffManagerBox');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+}
+
+function addNewStaff() {
+    const input = document.getElementById('newStaffName');
+    const name = input.value.trim();
+    if (!name) return;
+
+    if (staffList.includes(name)) {
+        alert("รายชื่อนี้มีอยู่ในระบบแล้วครับ!");
+        return;
+    }
+
+    staffList.push(name);
+    saveStaffToStorage();
+    renderStaffManager();
+    generateForm(); // อัปเดต dropdown ในตารางให้มีชื่อพนักงานใหม่
+    updatePreviewAndOutput();
+    input.value = '';
+}
+
+function removeStaff(name) {
+    if (confirm(`คุณต้องการลบรายชื่อคุณ "${name}" ออกจากระบบใช่หรือไม่?`)) {
+        staffList = staffList.filter(n => n !== name);
+        saveStaffToStorage();
+        renderStaffManager();
+        generateForm(); // อัปเดต dropdown ลบชื่อออก
+        updatePreviewAndOutput();
+    }
+}
+
+function saveStaffToStorage() {
+    localStorage.setItem('hospital_staff_list', JSON.stringify(staffList));
+}
+
+// ฟังก์ชันเซฟตารางเวลาลง Local Storage เพื่อกันการสูญหาย
+function saveScheduleToStorage() {
+    const month = document.getElementById('selectMonth').value;
+    const yearBE = document.getElementById('selectYear').value;
+    const storageKey = `duty_schedule_${yearBE}_${month}`;
+    localStorage.setItem(storageKey, JSON.stringify(scheduleData));
+}
+
+function generateForm() {
+    const formContainer = document.getElementById('scheduleForm');
+    formContainer.innerHTML = '';
+
+    scheduleData.forEach((data, index) => {
+        const row = document.createElement('div');
+        row.className = 'form-row';
+        row.innerHTML = `
+            <div><span style="font-weight: bold;">${data.dayName}</span></div>
+            <div>
+                <label>คนที่ 1</label>
+                <div style="display: flex; gap: 4px;">
+                    <select id="staff1-${index}" onchange="updateData(${index})">${generateOptions(data.staff1)}</select>
+                    <select id="sub1-${index}" onchange="updateData(${index})" style="width: 90px; font-size:11px;">
+                        <option value="">(ไม่แทน)</option>
+                        <option value="none">ขึ้นแทน</option>
+                        ${generateOptions(data.sub1)}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label>คนที่ 2</label>
+                <div style="display: flex; gap: 4px;">
+                    <select id="staff2-${index}" onchange="updateData(${index})">${generateOptions(data.staff2)}</select>
+                    <select id="sub2-${index}" onchange="updateData(${index})" style="width: 90px; font-size:11px;">
+                        <option value="">(ไม่แทน)</option>
+                        <option value="none">ขึ้นแทน</option>
+                        ${generateOptions(data.sub2)}
+                    </select>
+                </div>
+            </div>
+        `;
+        formContainer.appendChild(row);
+    });
+}
+
+function generateOptions(selectedValue) {
+    let options = '<option value="">--- เลือกรายชื่อ ---</option>';
+    staffList.forEach(name => {
+        const isSelected = name === selectedValue ? 'selected' : '';
+        options += `<option value="${name}" ${isSelected}>${name}</option>`;
+    });
+    return options;
+}
+
+function updateData(index) {
+    scheduleData[index].staff1 = document.getElementById(`staff1-${index}`).value;
+    scheduleData[index].sub1 = document.getElementById(`sub1-${index}`).value;
+    scheduleData[index].staff2 = document.getElementById(`staff2-${index}`).value;
+    scheduleData[index].sub2 = document.getElementById(`sub2-${index}`).value;
+
+    saveScheduleToStorage();
+    updatePreviewAndOutput();
+}
+
+function clearAll() {
+    if (confirm("คุณต้องการล้างข้อมูลเวรของเดือนนี้ทั้งหมดใช่หรือไม่?")) {
+        scheduleData.forEach(d => {
+            d.staff1 = ""; d.sub1 = ""; d.staff2 = ""; d.sub2 = "";
+        });
+        saveScheduleToStorage();
+        generateForm();
+        updatePreviewAndOutput();
+    }
+}
+
+// ระบบดึงข้อมูลจากไลน์ พร้อมระบบแจ้งเตือนเมื่อตรวจพบการเลือกเดือนที่ขัดแย้งกัน
+function importFromLine() {
+    const text = document.getElementById('importText').value;
+    if (!text.trim()) {
+        alert("กรุณาวางข้อความเวรจาก LINE ก่อนครับ");
+        return;
+    }
+
+    let detectedMonth = null;
+    let detectedYear = null;
+
+    thaiMonths.forEach((m, idx) => {
+        if (text.includes(m)) detectedMonth = idx;
+    });
+
+    const yearMatch = text.match(/25\d{2}/);
+    if (yearMatch) detectedYear = yearMatch[0];
+
+    // เช็คความสอดคล้องของ "เดือน" และ "ปี" ในข้อความ กับ สิ่งที่เลือกบนหน้าเว็บ
+    const currentSelectedMonth = parseInt(document.getElementById('selectMonth').value);
+    const currentSelectedYear = parseInt(document.getElementById('selectYear').value);
+
+    if (detectedMonth !== null && detectedYear !== null) {
+        if (detectedMonth !== currentSelectedMonth || parseInt(detectedYear) !== currentSelectedYear) {
+            const confirmChange = confirm(
+                `🚨 แจ้งเตือน: เดือนในข้อความไม่ตรงกัน!\n\n` +
+                `- บนหน้าเว็บเลือก: ${thaiMonths[currentSelectedMonth]} ${currentSelectedYear}\n` +
+                `- ข้อมูลจาก LINE คือ: ${thaiMonths[detectedMonth]} ${detectedYear}\n\n` +
+                `คุณต้องการสลับหน้าเว็บไปยังเดือน "${thaiMonths[detectedMonth]} ${detectedYear}" เพื่อดึงข้อมูลให้ถูกต้องใช่หรือไม่?`
+            );
+            
+            if (confirmChange) {
+                document.getElementById('selectMonth').value = detectedMonth;
+                document.getElementById('selectYear').value = detectedYear;
+                onMonthYearChange();
+            } else {
+                alert("ยกเลิกการดึงข้อมูลเพื่อป้องกันการสับสนเรื่องวันที่");
+                return;
+            }
+        }
+    }
+
+    const lines = text.split('\n');
+    let importedCount = 0;
+
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line) return;
+
+        const numMatch = line.match(/\d+/);
+        if (numMatch) {
+            const dayNum = parseInt(numMatch[0]);
+            if (dayNum >= 1 && dayNum <= scheduleData.length) {
+                const index = dayNum - 1;
+                const numberIndex = line.indexOf(numMatch[0]);
+                const staffPart = line.substring(numberIndex + numMatch[0].length).trim();
+
+                const pair = staffPart.split('+');
+                if (pair.length >= 1) {
+                    const [name1, sub1] = parseNameAndSub(pair[0]);
+                    scheduleData[index].staff1 = name1;
+                    scheduleData[index].sub1 = sub1;
+                }
+                if (pair.length >= 2) {
+                    const [name2, sub2] = parseNameAndSub(pair[1]);
+                    scheduleData[index].staff2 = name2;
+                    scheduleData[index].sub2 = sub2;
+                }
+                importedCount++;
+            }
+        }
+    });
+
+    if (importedCount > 0) {
+        saveScheduleToStorage();
+        generateForm();
+        updatePreviewAndOutput();
+        alert(`ดึงข้อมูลเสร็จสิ้นแล้วจำนวน ${importedCount} วัน!`);
+    } else {
+        alert("ไม่พบรูปแบบข้อมูลตารางเวรในข้อความดังกล่าว");
+    }
+}
+
+function parseNameAndSub(text) {
+    if (!text) return ["", ""];
+    text = text.trim();
+    const match = text.match(/([^(]+)\(([^)]+)\)/);
+    if (match) {
+        const mainName = match[1].trim();
+        const subName = match[2].trim();
+        
+        // ถ้าชื่อคนใหม่ที่พ่วงมายังไม่มีในระบบ เพิ่มให้อัตโนมัติชั่วคราว
+        if (mainName && !staffList.includes(mainName)) {
+            staffList.push(mainName);
+            saveStaffToStorage();
+            renderStaffManager();
+        }
+        if (subName && subName !== "แทน" && !staffList.includes(subName)) {
+            staffList.push(subName);
+            saveStaffToStorage();
+            renderStaffManager();
+        }
+        return [mainName, subName];
+    }
+    const cleanText = text.trim();
+    if (cleanText && !staffList.includes(cleanText)) {
+        staffList.push(cleanText);
+        saveStaffToStorage();
+        renderStaffManager();
+    }
+    return [cleanText, ""];
+}
+
+function updatePreviewAndOutput() {
+    const previewTable = document.getElementById('previewTable');
+    const lineOutput = document.getElementById('lineOutput');
+    
+    const mName = thaiMonths[document.getElementById('selectMonth').value];
+    const yName = document.getElementById('selectYear').value;
+
+    previewTable.innerHTML = '';
+    let lineText = `@All \nขออนุญาตจับคู่เวรดึก ประจำเดือน ${mName} ${yName} ครับ 🙏\n`;
+
+    scheduleData.forEach((data, index) => {
+        let staffStringHTML = "-";
+        if (data.staff1 || data.staff2) {
+            let s1 = data.staff1 || "ว่าง";
+            let s2 = data.staff2 || "ว่าง";
+            
+            if (data.sub1 && data.sub1 !== "none") s1 += `<span class="badge">แทน ${data.sub1}</span>`;
+            else if (data.sub1 === "none") s1 += `<span class="badge">ขึ้นแทน</span>`;
+
+            if (data.sub2 && data.sub2 !== "none") s2 += `<span class="badge">แทน ${data.sub2}</span>`;
+            else if (data.sub2 === "none") s2 += `<span class="badge">ขึ้นแทน</span>`;
+
+            staffStringHTML = `${s1} + ${s2}`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="day-tag">${data.dayName}</td>
+            <td>${staffStringHTML}</td>
+        `;
+        previewTable.appendChild(tr);
+
+        if (data.staff1 || data.staff2) {
+            let s1_text = data.staff1 || "ว่าง";
+            if (data.sub1 && data.sub1 !== "none") s1_text += `(${data.sub1})`;
+            else if (data.sub1 === "none") s1_text += `(แทน)`;
+
+            let s2_text = data.staff2 || "ว่าง";
+            if (data.sub2 && data.sub2 !== "none") s2_text += `(${data.sub2})`;
+            else if (data.sub2 === "none") s2_text += `(แทน)`;
+
+            lineText += `${data.dayName} ${s1_text} + ${s2_text}\n`;
+        }
+    });
+
+    lineOutput.innerText = lineText;
+}
+
+function copyToLine() {
+    const textRange = document.createRange();
+    textRange.selectNode(document.getElementById('lineOutput'));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(textRange);
+    try {
+        document.execCommand('copy');
+        alert('คัดลอกข้อความทั้งหมดแล้ว! นำไปกด "วาง (Paste)" ใน LINE แชทส่งต่อได้เลยครับ');
+    } catch (err) {
+        alert('คัดลอกล้มเหลว กรุณาคัดลอกข้อมูลแมนนวลด้วยตนเองครับ');
+    }
+    window.getSelection().removeAllRanges();
+}
+
+// 📦 ระบบ Export: บีบอัดข้อมูลทั้งหมดเป็นไฟล์ .json
+function exportData() {
+    const dataObj = {
+        staff: staffList,
+        schedules: {}
+    };
+
+    // ดึงข้อมูลตารางเวรทั้งหมดของทุกเดือนในเครื่องที่เคยจัดเก็บมาลงในไฟล์เดียว
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith("duty_schedule_")) {
+            dataObj.schedules[key] = JSON.parse(localStorage.getItem(key));
+        }
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataObj));
+    const downloadAnchor = document.createElement('a');
+    
+    const mName = thaiMonths[document.getElementById('selectMonth').value];
+    const yName = document.getElementById('selectYear').value;
+    
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `ตารางเวรโรงพยาบาล_สำรองข้อมูล_${mName}_${yName}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+
+function triggerImport() {
+    document.getElementById('importFile').click();
+}
+
+// 📥 ระบบ Import: อ่านไฟล์ .json แล้วบันทึกลงบราวเซอร์แทนที่ข้อมูลเดิม
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported.staff && Array.isArray(imported.staff)) {
+                
+                // นำเข้าข้อมูลรายชื่อ
+                staffList = imported.staff;
+                saveStaffToStorage();
+
+                // นำเข้าข้อมูลประวัติตารางเวร
+                if (imported.schedules) {
+                    Object.keys(imported.schedules).forEach(key => {
+                        localStorage.setItem(key, JSON.stringify(imported.schedules[key]));
+                    });
+                }
+
+                alert("📥 นำเข้าข้อมูลระบบจัดเวรสำเร็จแล้ว! ตารางและรายชื่อถูกสลับเรียบร้อยแล้ว");
+                initApp(); // รีโหลดระบบใหม่ด้วยข้อมูลที่นำเข้ามา
+            } else {
+                alert("ไฟล์ข้อมูลไม่ถูกต้อง");
+            }
+        } catch (err) {
+            alert("เกิดข้อผิดพลาดในการนำเข้าไฟล์ กรุณาลองตรวจสอบไฟล์ใหม่อีกครั้ง");
+        }
+    };
+    reader.readAsText(file);
+}
+
+// เริ่มการใช้งานแอปพลิเคชัน
+initApp();
+</script>
+
+</body>
+</html>
